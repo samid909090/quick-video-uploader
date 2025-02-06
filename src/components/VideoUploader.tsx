@@ -49,13 +49,20 @@ const VideoUploader = () => {
       const fileName = `${Math.random()}.${fileExt}`;
       const filePath = `${fileName}`;
 
+      // Create a new XMLHttpRequest to track upload progress
+      const xhr = new XMLHttpRequest();
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const percent = (event.loaded / event.total) * 100;
+          setUploadProgress(percent);
+        }
+      });
+
       const { error: uploadError, data } = await supabase.storage
         .from('videos')
         .upload(filePath, selectedVideo, {
-          onUploadProgress: (progress) => {
-            const percent = (progress.loaded / progress.total) * 100;
-            setUploadProgress(percent);
-          },
+          cacheControl: '3600',
+          upsert: false
         });
 
       if (uploadError) {
@@ -81,17 +88,14 @@ const VideoUploader = () => {
   };
 
   const openGallery = () => {
-    // Create a file input element
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'video/*';
-    input.capture = 'environment'; // This enables camera/gallery access on mobile
+    input.capture = 'environment';
     input.multiple = false;
     
-    // Add the change event listener
     input.onchange = (e) => handleVideoSelect(e as unknown as React.ChangeEvent<HTMLInputElement>);
     
-    // Trigger the file input click
     input.click();
   };
 
