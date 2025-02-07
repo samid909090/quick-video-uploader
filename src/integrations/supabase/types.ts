@@ -9,7 +9,30 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      telegram_configs: {
+        Row: {
+          api_hash: string
+          api_id: string
+          created_at: string | null
+          id: string
+          server_url: string
+        }
+        Insert: {
+          api_hash: string
+          api_id: string
+          created_at?: string | null
+          id?: string
+          server_url: string
+        }
+        Update: {
+          api_hash?: string
+          api_id?: string
+          created_at?: string | null
+          id?: string
+          server_url?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -1,15 +1,20 @@
+
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Upload, Video } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
+import { useTelegramConfig } from "@/utils/telegramConfig";
+import { useQueryClient } from "@tanstack/react-query";
 
 const VideoUploader = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const { toast } = useToast();
+  const { data: telegramConfig, isLoading: isConfigLoading } = useTelegramConfig();
+  const queryClient = useQueryClient();
   
   const handleVideoSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -41,22 +46,23 @@ const VideoUploader = () => {
       return;
     }
 
+    if (!telegramConfig) {
+      toast({
+        variant: "destructive",
+        title: "टेलीग्राम कॉन्फ़िगरेशन त्रुटि",
+        description: "टेलीग्राम कॉन्फ़िगरेशन लोड नहीं हो सका"
+      });
+      return;
+    }
+
     setIsUploading(true);
     setUploadProgress(0);
 
     try {
+      // First upload to Supabase for temporary storage
       const fileExt = selectedVideo.name.split('.').pop();
       const fileName = `${Math.random()}.${fileExt}`;
       const filePath = `${fileName}`;
-
-      // Create a new XMLHttpRequest to track upload progress
-      const xhr = new XMLHttpRequest();
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable) {
-          const percent = (event.loaded / event.total) * 100;
-          setUploadProgress(percent);
-        }
-      });
 
       const { error: uploadError, data } = await supabase.storage
         .from('videos')
@@ -69,10 +75,32 @@ const VideoUploader = () => {
         throw uploadError;
       }
 
+      // Now we have the file URL, we can send it to Telegram
+      const publicUrl = supabase.storage.from('videos').getPublicUrl(filePath).data.publicUrl;
+      
+      // Upload to Telegram
+      const formData = new FormData();
+      formData.append('video', selectedVideo);
+      formData.append('api_id', telegramConfig.apiId);
+      formData.append('api_hash', telegramConfig.apiHash);
+      formData.append('server_url', telegramConfig.serverUrl);
+
+      const response = await fetch('https://api.telegram.org/bot{YOUR_BOT_TOKEN}/sendVideo', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload to Telegram');
+      }
+
       toast({
         title: "सफलता",
         description: "वीडियो सफलतापूर्वक अपलोड किया गया!"
       });
+
+      // Refresh the videos list
+      queryClient.invalidateQueries({ queryKey: ["videos"] });
     } catch (error) {
       console.error('Upload error:', error);
       toast({
@@ -98,6 +126,10 @@ const VideoUploader = () => {
     
     input.click();
   };
+
+  if (isConfigLoading) {
+    return <div>Loading configuration...</div>;
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-blue-50 to-white p-4">
