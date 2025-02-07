@@ -75,38 +75,43 @@ const VideoUploader = () => {
         throw uploadError;
       }
 
-      // Now we have the file URL, we can send it to Telegram
-      const publicUrl = supabase.storage.from('videos').getPublicUrl(filePath).data.publicUrl;
-      
-      // Upload to Telegram
+      // Now upload to Telegram using MTProto server
       const formData = new FormData();
-      formData.append('video', selectedVideo);
+      formData.append('file', selectedVideo);
       formData.append('api_id', telegramConfig.apiId);
       formData.append('api_hash', telegramConfig.apiHash);
-      formData.append('server_url', telegramConfig.serverUrl);
 
-      const response = await fetch('https://api.telegram.org/bot{YOUR_BOT_TOKEN}/sendVideo', {
+      const response = await fetch(`https://${telegramConfig.serverUrl}/upload`, {
         method: 'POST',
-        body: formData
+        body: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        }
       });
 
       if (!response.ok) {
         throw new Error('Failed to upload to Telegram');
       }
 
-      toast({
-        title: "सफलता",
-        description: "वीडियो सफलतापूर्वक अपलोड किया गया!"
-      });
+      const telegramResponse = await response.json();
 
-      // Refresh the videos list
-      queryClient.invalidateQueries({ queryKey: ["videos"] });
+      if (telegramResponse.ok) {
+        toast({
+          title: "सफलता",
+          description: "वीडियो टेलीग्राम पर सफलतापूर्वक अपलोड किया गया!"
+        });
+
+        // Refresh the videos list
+        queryClient.invalidateQueries({ queryKey: ["videos"] });
+      } else {
+        throw new Error(telegramResponse.error || 'Unknown error occurred');
+      }
     } catch (error) {
       console.error('Upload error:', error);
       toast({
         variant: "destructive",
         title: "त्रुटि",
-        description: "वीडियो अपलोड करने में विफल"
+        description: "वीडियो अपलोड करने में विफल: " + (error.message || 'Unknown error')
       });
     } finally {
       setIsUploading(false);

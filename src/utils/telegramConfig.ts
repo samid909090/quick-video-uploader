@@ -32,5 +32,5 @@ export const useTelegramConfig = () => {
 };
 
 export const validateTelegramCredentials = (config: TelegramConfig | null) => {
-  return config?.apiId && config?.apiHash && config?.serverUrl;
+  return Boolean(config?.apiId && config?.apiHash && config?.serverUrl);
 };
